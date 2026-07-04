@@ -1,4 +1,6 @@
 from urllib.parse import urljoin
+from collections import deque
+from datetime import date, timedelta
 
 import requests
 from bs4 import BeautifulSoup
@@ -20,17 +22,38 @@ class FscClient:
             }
         )
 
-    def fetch_recent_documents(self) -> list[RegulationDocument]:
-        response = self.session.get(
-            self.settings.fsc_legislation_notice_url,
-            timeout=self.settings.request_timeout_seconds,
-        )
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        documents = self._parse_documents(soup)
+    def fetch_recent_documents(self, months_back: int = 1) -> list[RegulationDocument]:
+        cutoff = date.today() - timedelta(days=max(months_back, 1) * 31)
+        documents = self._fetch_documents_until_cutoff(cutoff=cutoff)
         if documents:
             return documents[: self.settings.max_documents_to_analyze]
         return self._fallback_documents()
+
+    def _fetch_documents_until_cutoff(self, cutoff: date) -> list[RegulationDocument]:
+        documents: list[RegulationDocument] = []
+        seen_urls: set[str] = set()
+        queued_urls = deque([self.settings.fsc_legislation_notice_url])
+
+        while queued_urls and len(seen_urls) < self.settings.max_fsc_pages_to_scan:
+            url = queued_urls.popleft()
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            response = self.session.get(url, timeout=self.settings.request_timeout_seconds)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            page_documents = self._parse_documents(soup)
+            documents.extend(self._filter_by_cutoff(page_documents, cutoff))
+
+            if self._page_is_older_than_cutoff(page_documents, cutoff):
+                break
+
+            for next_url in self._extract_pagination_urls(soup):
+                if next_url not in seen_urls:
+                    queued_urls.append(next_url)
+
+        return self._dedupe_documents(documents)
 
     def _parse_documents(self, soup: BeautifulSoup) -> list[RegulationDocument]:
         rows: list[RegulationDocument] = []
@@ -81,6 +104,17 @@ class FscClient:
             urls.append(urljoin(self.settings.fsc_legislation_notice_url, href))
         return urls
 
+    def _extract_pagination_urls(self, soup: BeautifulSoup) -> list[str]:
+        urls: list[str] = []
+        for anchor in soup.find_all("a", href=True):
+            href = anchor.get("href", "")
+            if "po040301" not in href and "page" not in href.lower():
+                continue
+            url = urljoin(self.settings.fsc_legislation_notice_url, href)
+            if url not in urls:
+                urls.append(url)
+        return urls
+
     @staticmethod
     def _looks_like_regulation_title(title: str) -> bool:
         if len(title) < 8:
@@ -97,6 +131,48 @@ class FscClient:
 
         match = re.search(r"20\d{2}-\d{2}-\d{2}", text)
         return match.group(0) if match else None
+
+    @staticmethod
+    def _filter_by_cutoff(
+        documents: list[RegulationDocument],
+        cutoff: date,
+    ) -> list[RegulationDocument]:
+        return [
+            document
+            for document in documents
+            if not document.published_date
+            or FscClient._parse_date(document.published_date) >= cutoff
+        ]
+
+    @staticmethod
+    def _page_is_older_than_cutoff(
+        documents: list[RegulationDocument],
+        cutoff: date,
+    ) -> bool:
+        dated_documents = [
+            FscClient._parse_date(document.published_date)
+            for document in documents
+            if document.published_date
+        ]
+        return bool(dated_documents) and max(dated_documents) < cutoff
+
+    @staticmethod
+    def _parse_date(value: str | None) -> date:
+        if not value:
+            return date.today()
+        return date.fromisoformat(value)
+
+    @staticmethod
+    def _dedupe_documents(documents: list[RegulationDocument]) -> list[RegulationDocument]:
+        seen_keys: set[str] = set()
+        deduped: list[RegulationDocument] = []
+        for document in documents:
+            key = document.detail_url or f"{document.published_date}|{document.title}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            deduped.append(document)
+        return deduped
 
     @staticmethod
     def _extract_department(text: str) -> str | None:

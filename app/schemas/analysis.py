@@ -11,6 +11,7 @@ class DocumentAnalysisResult(BaseModel):
     department: str | None = None
     detail_url: str | None = None
     attachment_urls: list[str] = Field(default_factory=list)
+    document_summary: str = ""
     impact_level: str
     affected_departments: list[str] = Field(default_factory=list)
     matched_controls: list[MatchedControl] = Field(default_factory=list)
@@ -34,8 +35,10 @@ class MonitorRunResponse(BaseModel):
 class SummaryDocument(BaseModel):
     title: str
     published_date: str | None = None
+    document_summary: str = ""
     impact_level: str
     affected_departments: list[str] = Field(default_factory=list)
+    matched_controls: list[MatchedControl] = Field(default_factory=list)
     reason: str
     recommended_actions: list[str] = Field(default_factory=list)
     notification_message: str
@@ -52,3 +55,10 @@ class MonitorSummaryResponse(BaseModel):
     already_seen_documents: list[str] = Field(default_factory=list)
     summaries: list[SummaryDocument] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+
+class SeenDocumentRequest(BaseModel):
+    title: str
+    source: str
+    published_date: str | None = None
+    detail_url: str | None = None

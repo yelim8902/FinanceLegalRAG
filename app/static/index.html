@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>규제 모니터링 업무함</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="workspace">
+      <aside class="sidebar" aria-label="서비스 메뉴">
+        <a class="brand" href="/">
+          <span class="brand-mark">FC</span>
+          <span>
+            <strong>규제 모니터링</strong>
+            <small>Compliance desk</small>
+          </span>
+        </a>
+        <nav class="side-nav">
+          <a class="active" href="/">업무함</a>
+          <a href="/docs">API 문서</a>
+          <a href="/health">상태 확인</a>
+        </nav>
+
+        <section class="side-panels" aria-label="보조 정보">
+          <article class="side-panel">
+            <button class="side-panel-toggle" type="button" aria-expanded="true">
+              <span class="panel-label">
+                <span class="bell-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M15 17H9m9-2h-1V9a5 5 0 0 0-10 0v6H6m9 2a3 3 0 0 1-6 0" />
+                  </svg>
+                </span>
+                알림
+              </span>
+              <span id="warning-count" class="count-badge">0</span>
+            </button>
+            <ul id="warnings-list" class="side-list"></ul>
+          </article>
+
+          <article class="side-panel">
+            <button class="side-panel-toggle" type="button" aria-expanded="true">
+              <span class="panel-label">내부 회사 규정</span>
+              <span id="controls-count" class="count-badge">0</span>
+            </button>
+            <div id="controls-list" class="controls-list"></div>
+          </article>
+
+          <article class="side-panel">
+            <button class="side-panel-toggle" type="button" aria-expanded="true">
+              <span class="panel-label">이미 본 문서</span>
+              <span id="seen-count" class="count-badge">0</span>
+            </button>
+            <ul id="seen-list" class="side-list"></ul>
+          </article>
+        </section>
+
+        <div class="side-note">
+          <span>수집 출처</span>
+          <strong id="source-name">-</strong>
+        </div>
+      </aside>
+
+      <main class="main-view">
+        <header class="page-header">
+          <div>
+            <h1>규제 검토 업무함</h1>
+            <p>금융위원회 신규 문서 중 회사 준수 항목과 연결되는 항목을 검토합니다.</p>
+          </div>
+          <div class="header-actions">
+            <button id="refresh-summary" class="secondary-button" type="button">새로고침</button>
+            <button id="run-monitor" class="primary-button" type="button">모니터링 실행</button>
+          </div>
+        </header>
+
+        <section class="toolbar" aria-label="조회 조건">
+          <div class="field-group">
+            <label for="include-seen">조회 범위</label>
+            <div class="segmented-control">
+              <button id="exclude-seen-option" type="button">신규만</button>
+              <button id="include-seen-option" class="selected" type="button">전체</button>
+            </div>
+            <input id="include-seen" type="checkbox" checked hidden />
+          </div>
+          <div class="field-group">
+            <label for="impact-filter">영향도</label>
+            <select id="impact-filter">
+              <option value="all">전체</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="period-select">수집 기간</label>
+            <select id="period-select">
+              <option value="1">최근 1개월</option>
+              <option value="6">최근 6개월</option>
+            </select>
+          </div>
+          <div class="field-group search-field">
+            <label for="search-input">문서 검색</label>
+            <input id="search-input" type="search" placeholder="제목, 부서, 문서 요약, 검토 의견" />
+          </div>
+          <div class="sync-state">
+            <span id="status-dot" class="status-dot idle"></span>
+            <span id="status-text">대기 중</span>
+          </div>
+        </section>
+
+        <section class="metrics-row" aria-label="요약 지표">
+          <article>
+            <span>검토 대상</span>
+            <strong id="analyzed-count">0</strong>
+          </article>
+          <article>
+            <span>수집 문서</span>
+            <strong id="total-count">0</strong>
+          </article>
+          <article>
+            <span>이미 본 문서</span>
+            <strong id="seen-count">0</strong>
+          </article>
+          <article>
+            <span>마지막 확인</span>
+            <strong id="last-checked">-</strong>
+          </article>
+        </section>
+
+        <section class="workbench">
+          <div class="queue-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>검토 문서</h2>
+                <span id="result-count">0건</span>
+              </div>
+              <span id="warning-summary" class="warning-pill">알림 0</span>
+            </div>
+
+            <div class="table-header" aria-hidden="true">
+              <span>영향도</span>
+              <span>문서</span>
+              <span>담당</span>
+              <span>분석</span>
+            </div>
+            <div id="results-list" class="results-list" aria-live="polite"></div>
+          </div>
+
+          <aside class="detail-panel" aria-label="문서 상세">
+            <div id="detail-empty" class="detail-empty">
+              <strong>문서를 선택하세요</strong>
+              <span>왼쪽 목록에서 항목을 선택하면 근거 조문과 대응안을 확인할 수 있습니다.</span>
+            </div>
+            <article id="detail-content" class="detail-content" hidden>
+              <div class="detail-title-row">
+                <span id="detail-impact" class="impact-badge"></span>
+                <span id="detail-method" class="method-badge"></span>
+              </div>
+              <h2 id="detail-title"></h2>
+              <dl class="detail-meta">
+                <div>
+                  <dt>공개일</dt>
+                  <dd id="detail-date">-</dd>
+                </div>
+                <div>
+                  <dt>담당 부서</dt>
+                  <dd id="detail-departments">-</dd>
+                </div>
+              </dl>
+              <section>
+                <h3>법령 문서 요약</h3>
+                <p id="detail-summary"></p>
+              </section>
+              <section>
+                <h3>영향 검토 의견</h3>
+                <p id="detail-reason"></p>
+              </section>
+              <section>
+                <h3>권고 대응안</h3>
+                <ul id="detail-actions" class="detail-list"></ul>
+              </section>
+              <section>
+                <h3>근거 조문</h3>
+                <div id="detail-evidence" class="evidence-list"></div>
+              </section>
+              <section>
+                <h3>연결된 내부 규정</h3>
+                <div id="detail-controls" class="control-links"></div>
+              </section>
+              <a id="detail-link" class="detail-link" target="_blank" rel="noreferrer">원문 상세 보기</a>
+            </article>
+          </aside>
+        </section>
+
+      </main>
+    </div>
+
+    <template id="result-template">
+      <button class="result-row" type="button">
+        <span class="impact-badge"></span>
+        <span class="document-cell">
+          <strong></strong>
+          <small class="reason-preview"></small>
+        </span>
+        <span class="department-cell"></span>
+        <span class="method-badge"></span>
+      </button>
+    </template>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

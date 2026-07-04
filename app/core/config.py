@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
     fsc_legislation_notice_url: str = "https://www.fsc.go.kr/po040301"
     request_timeout_seconds: int = 10
-    max_documents_to_analyze: int = 10
+    max_documents_to_analyze: int = 80
+    max_fsc_pages_to_scan: int = 8
     seen_documents_db_path: str = "storage/seen_documents.db"
 
 

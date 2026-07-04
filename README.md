@@ -93,6 +93,12 @@ OPENAI_MODEL=gpt-4o-mini
 uvicorn app.main:app --reload
 ```
 
+프론트엔드 대시보드:
+
+```text
+http://127.0.0.1:8000/
+```
+
 Swagger UI:
 
 ```text
@@ -155,6 +161,22 @@ POST /monitor/run
 ```
 
 데모 중 같은 결과를 다시 보여주고 싶다면 `include_seen=true`를 사용합니다.
+
+최근 6개월치 목록까지 넓혀서 수집/분석하려면 `months_back`을 지정합니다.
+
+```bash
+curl "http://127.0.0.1:8000/monitor/summary?include_seen=true&months_back=6"
+```
+
+한 번 분석한 문서는 SQLite에 분석 결과 JSON으로 저장되어, 이후 같은 문서를 조회할 때 다시 OpenAI 분석을 호출하지 않고 저장된 결과를 재사용합니다.
+
+### 4. 내부 회사 규정 조회
+
+```bash
+curl "http://127.0.0.1:8000/company/controls"
+```
+
+프론트엔드에서는 규제 문서 상세 패널에서 연결된 내부 규정과 매칭 키워드를 함께 확인할 수 있습니다.
 
 ## RAG를 어디까지 구현했나
 

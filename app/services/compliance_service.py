@@ -67,6 +67,11 @@ class ComplianceService:
             department=document.department,
             detail_url=document.detail_url,
             attachment_urls=document.attachment_urls,
+            document_summary=self._build_document_summary(
+                document=document,
+                evidence_chunks=evidence_chunks,
+                matched_controls=analysis_controls,
+            ),
             impact_level=impact_level,
             affected_departments=affected_departments,
             matched_controls=[
@@ -178,6 +183,45 @@ class ComplianceService:
             f"'{document.title}' 문서는 전자금융/IT보안 관련 키워드를 포함하고 있으며, "
             f"회사 준수 항목 중 {titles}와 연결됩니다. 내부 절차 변경 여부 검토가 필요합니다."
         )
+
+    @staticmethod
+    def _build_document_summary(
+        document: RegulationDocument,
+        evidence_chunks,
+        matched_controls: list[CompanyControl],
+    ) -> str:
+        if evidence_chunks:
+            topics = [control.title for control in matched_controls[:2]]
+            evidence_labels = []
+            for chunk in evidence_chunks[:3]:
+                section_title = chunk.section_title.strip() if chunk.section_title else ""
+                label_parts = [chunk.article_no]
+                if section_title and len(section_title) <= 35:
+                    label_parts.append(section_title)
+                label = " ".join(part.strip() for part in label_parts if part and part.strip())
+                if label:
+                    evidence_labels.append(label)
+            unique_labels = list(dict.fromkeys(evidence_labels))
+            if topics and unique_labels:
+                return (
+                    f"이 문서는 {', '.join(topics)} 관련 규제 변경 내용을 다룹니다. "
+                    f"주요 근거는 {', '.join(unique_labels)}입니다."
+                )
+
+            evidence_text = " ".join(chunk.quote.strip() for chunk in evidence_chunks[:2] if chunk.quote.strip())
+            if evidence_text:
+                return ComplianceService._compact_text(evidence_text, max_length=300)
+
+        metadata_text = document.summary_text.split("[PDF 본문 추출]", 1)[0]
+        fallback_text = metadata_text or document.title
+        return ComplianceService._compact_text(fallback_text, max_length=300)
+
+    @staticmethod
+    def _compact_text(text: str, max_length: int) -> str:
+        compacted = " ".join(text.split())
+        if len(compacted) <= max_length:
+            return compacted
+        return compacted[: max_length - 1].rstrip() + "…"
 
     @staticmethod
     def _build_actions(matched_controls: list[CompanyControl]) -> list[str]:
